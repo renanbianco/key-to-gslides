@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Keynote to Google Slides",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-W", "ignore", "main.py"],
+      "port": 0
+    }
+  ]
+}

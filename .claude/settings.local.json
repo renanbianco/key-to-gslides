@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(python3 -W ignore -c ':*)",
+      "Bash(chmod +x \"/Users/renanbianco/vibe coding/key to gslides/run.sh\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(python3 -W ignore main.py)",
+      "Bash(xargs '-I{}' sh -c 'name=$\\(basename \"{}\"\\); case \"$name\" in *[Kk]eynote*|*[Kk]ey*[Nn]ote*\\) echo \"{}\";; esac')",
+      "Bash(/usr/libexec/PlistBuddy -c \"Print CFBundleIdentifier\" \"/Applications/Keynote Creator Studio.app/Contents/Info.plist\")",
+      "Bash(python3 -)",
+      "Bash(python3 python/cli.py)",
+      "Bash(echo \"exit: $?\")"
+    ]
+  }
+}

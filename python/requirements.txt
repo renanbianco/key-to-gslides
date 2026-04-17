@@ -1,0 +1,13 @@
+# Python dependencies for the KeynoteToSlides .app bundle.
+#
+# These are the ONLY packages the embedded Python runtime needs.
+# Auth, networking, and Keynote export have all moved to Swift.
+#
+# Install into the bundle's site-packages with:
+#   pip install -r requirements.txt \
+#       --target <bundle>/Contents/Resources/python/site-packages \
+#       --no-deps-for-packages  (optional, keep explicit)
+
+python-pptx>=0.6.21
+Pillow>=10.0.0
+lxml>=4.9.0
