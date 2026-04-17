@@ -135,6 +135,17 @@ def _cmd_has_videos(args: dict) -> None:
     _result(has_videos=bool(video_names), video_names=video_names)
 
 
+def _cmd_list_fonts(args: dict) -> None:
+    """
+    Return the complete list of fonts known to be supported by Google Slides.
+
+    Result fields:
+        fonts: list[str]  — sorted list of all font names
+    """
+    from src.font_checker import get_all_font_names
+    _result(fonts=get_all_font_names())
+
+
 def _cmd_compress_pptx(args: dict) -> None:
     """
     Recompress images (and optionally strip videos) from a PPTX to bring
@@ -179,6 +190,7 @@ _COMMANDS: dict[str, callable] = {
     "replace_fonts": _cmd_replace_fonts,
     "has_videos":    _cmd_has_videos,
     "compress_pptx": _cmd_compress_pptx,
+    "list_fonts":    _cmd_list_fonts,
 }
 
 

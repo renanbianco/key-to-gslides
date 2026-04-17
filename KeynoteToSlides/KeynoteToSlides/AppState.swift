@@ -1,6 +1,4 @@
 // AppState.swift
-// Single source of truth for the entire app, observed by all SwiftUI views.
-
 import Foundation
 import SwiftUI
 
@@ -37,22 +35,15 @@ enum ConversionPhase: Equatable {
         case .checkingFonts:    return "Checking font compatibility…"
         case .replacingFonts:   return "Replacing fonts…"
         case .checkingVideos:   return "Checking for embedded videos…"
-        case .compressing:      return "Compressing…"
+        case .compressing:      return "Compressing file…"
         case .uploading:        return "Uploading to Google Drive…"
         case .done:             return "✓  Conversion complete!"
         case .failed(let msg):  return "Error: \(msg)"
         }
     }
 
-    var isError: Bool {
-        if case .failed = self { return true }
-        return false
-    }
-
-    var isSuccess: Bool {
-        if case .done = self { return true }
-        return false
-    }
+    var isError: Bool   { if case .failed = self { return true }; return false }
+    var isSuccess: Bool { if case .done   = self { return true }; return false }
 }
 
 // MARK: - AppState
@@ -75,32 +66,45 @@ final class AppState: ObservableObject {
     @Published var userInfo: UserInfo?
     @Published var isSigningIn: Bool = false
 
-    var isSignedIn: Bool { userInfo != nil }
-
     // ── Font replacements ────────────────────────────────────────────────────
-    /// Saved mapping loaded from UserDefaults: oldFontName → replacementFontName
     @Published var savedFontReplacements: [String: String] = [:]
+    @Published var cachedFontList: [String] = []
 
     // ── Conversion pipeline ─────────────────────────────────────────────────
     @Published var phase: ConversionPhase = .idle
     @Published var progressMessage: String = ""
-    @Published var uploadProgress: Double = 0          // 0.0 – 1.0
+    @Published var uploadProgress: Double = 0
 
-    var canConvert: Bool { selectedFileURL != nil && isSignedIn && !phase.isRunning }
+    var canConvert: Bool { selectedFileURL != nil && userInfo != nil && !phase.isRunning }
 
-    // ── Sheet / dialog presentation ──────────────────────────────────────────
+    // ── Sheet / dialog state ─────────────────────────────────────────────────
     @Published var pendingUnsupportedFonts: [String] = []
     @Published var showFontReplacementSheet: Bool = false
     @Published var pendingVideoNames: [String] = []
     @Published var showVideoWarningSheet: Bool = false
 
-    // ── Lifecycle ────────────────────────────────────────────────────────────
+    // Continuation holders — not @Published, used only on MainActor
+    var fontContinuation: CheckedContinuation<[String: String]?, Never>?
+    var videoContinuation: CheckedContinuation<Bool, Never>?
 
-    init() {
-        loadSavedFontReplacements()
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    init() { loadSavedFontReplacements() }
+
+    // MARK: - Sheet submit methods (called from sheet views)
+
+    func submitFontReplacement(_ replacements: [String: String]?) {
+        showFontReplacementSheet = false
+        fontContinuation?.resume(returning: replacements)
+        fontContinuation = nil
     }
 
-    // MARK: Font replacement persistence (UserDefaults)
+    func submitVideoWarning(proceed: Bool) {
+        showVideoWarningSheet = false
+        videoContinuation?.resume(returning: proceed)
+        videoContinuation = nil
+    }
+
+    // MARK: - Font replacement persistence (UserDefaults)
 
     private let kFontReplacements = "savedFontReplacements"
 
@@ -122,4 +126,15 @@ final class AppState: ObservableObject {
     }
 
     var hasSavedFontReplacements: Bool { !savedFontReplacements.isEmpty }
+
+    // MARK: - Font list prefetch
+
+    func prefetchFontList() async {
+        guard cachedFontList.isEmpty else { return }
+        do {
+            cachedFontList = try await PythonRunner.shared.listFonts()
+        } catch {
+            // Silently fall back — autocomplete will just have no suggestions
+        }
+    }
 }

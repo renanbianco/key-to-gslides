@@ -257,6 +257,14 @@ final class PythonRunner: Sendable {
         return try _decode(HasVideosResult.self, from: raw)
     }
 
+    func listFonts() async throws -> [String] {
+        let raw = try await run(command: "list_fonts", args: [:])
+        guard let fonts = raw["fonts"] as? [String] else {
+            throw PythonRunnerError.decodingFailed("fonts array missing from list_fonts result")
+        }
+        return fonts
+    }
+
     /// Recompress images (and optionally strip videos) to meet the 95 MB limit.
     func compressPptx(
         pptxPath: String,

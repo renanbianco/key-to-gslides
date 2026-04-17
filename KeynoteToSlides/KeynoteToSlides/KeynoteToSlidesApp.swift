@@ -1,5 +1,4 @@
 // KeynoteToSlidesApp.swift
-
 import SwiftUI
 
 @main
@@ -14,7 +13,6 @@ struct KeynoteToSlidesApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .commands {
-            // Remove File > New (there's no document model)
             CommandGroup(replacing: .newItem) { }
         }
     }
