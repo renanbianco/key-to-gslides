@@ -2,12 +2,40 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- No sandbox — app runs a Python subprocess and reads/writes temp files -->
+    <!-- No sandbox: app spawns a Python subprocess and reads/writes arbitrary temp files -->
     <key>com.apple.security.app-sandbox</key>
     <false/>
 
-    <!-- Needed to send Apple Events to Keynote for export -->
+    <!-- Send Apple Events to Keynote to trigger export -->
     <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!--
+        Required for the embedded Python runtime (hardened runtime exceptions):
+
+        allow-jit: Python's eval() and ctypes use mprotect(PROT_EXEC) at runtime.
+        Without this the process is killed by the kernel under hardened runtime.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!--
+        allow-unsigned-executable-memory: Pillow and lxml load native C extensions
+        (.so files compiled by pip) that aren't individually signed. This lets them
+        map their text segments executable.
+    -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+
+    <!--
+        disable-library-validation: pip-installed .so extension modules are signed
+        by their respective build systems, not by your Developer ID. Without this,
+        dyld refuses to load them under hardened runtime.
+
+        This is the standard exception used by every Python-embedding app
+        (PyInstaller, Briefcase, py2app) — Apple accepts it for notarization.
+    -->
+    <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
 </dict>
 </plist>

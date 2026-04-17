@@ -1,0 +1,17 @@
+# Build artefacts
+.build/
+dist/
+*.dmg
+*.zip
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Credentials (NEVER commit these)
+credentials/token.json
+credentials/client_secret.json
+
+# macOS
+.DS_Store
