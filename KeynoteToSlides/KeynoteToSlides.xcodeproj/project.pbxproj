@@ -21,6 +21,8 @@
 		B2000001000000000000AA12 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB12 /* DropZoneView.swift */; };
 		B2000001000000000000AA13 /* FontReplacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB13 /* FontReplacementSheet.swift */; };
 		B2000001000000000000AA14 /* VideoWarningSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB14 /* VideoWarningSheet.swift */; };
+		CC000004000000000000AA02 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000BB02 /* GoogleService-Info.plist */; };
+		CC000004000000000000AA01 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000BB01 /* FontLoader.swift */; };
 		B2000001000000000000AA15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB15 /* Assets.xcassets */; };
 		/* Info.plist is referenced via INFOPLIST_FILE setting — not added to Resources */
 /* End PBXBuildFile section */
@@ -44,6 +46,8 @@
 		B2000001000000000000BB15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B2000001000000000000BB16 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B2000001000000000000BB17 /* KeynoteToSlides.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KeynoteToSlides.entitlements; sourceTree = "<group>"; };
+		CC000004000000000000BB01 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
+		CC000004000000000000BB02 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = ../credentials/GoogleService-Info.plist; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +76,8 @@
 				B2000001000000000000BB03 /* Models.swift */,
 				B2000001000000000000BB04 /* PythonRunner.swift */,
 				B2000001000000000000BB05 /* ContentView.swift */,
+					CC000004000000000000BB01 /* FontLoader.swift */,
+					CC000004000000000000BB02 /* GoogleService-Info.plist */,
 				B2000001000000000000DD03 /* Services */,
 				B2000001000000000000DD04 /* Views */,
 				B2000001000000000000BB15 /* Assets.xcassets */,
@@ -165,6 +171,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+					CC000004000000000000AA02 /* GoogleService-Info.plist in Resources */,
 				B2000001000000000000AA15 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -181,6 +188,7 @@
 				B2000001000000000000AA03 /* Models.swift in Sources */,
 				B2000001000000000000AA04 /* PythonRunner.swift in Sources */,
 				B2000001000000000000AA05 /* ContentView.swift in Sources */,
+					CC000004000000000000AA01 /* FontLoader.swift in Sources */,
 				B2000001000000000000AA06 /* GoogleAuth.swift in Sources */,
 				B2000001000000000000AA07 /* KeynoteExporter.swift in Sources */,
 				B2000001000000000000AA08 /* DriveUploader.swift in Sources */,

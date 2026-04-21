@@ -1,5 +1,6 @@
 // KeynoteExporter.swift
 import Foundation
+import AppKit   // NSWorkspace, NSRunningApplication, NSAppleScript
 
 enum ExportError: LocalizedError {
     case fileNotFound(String)
@@ -28,118 +29,98 @@ struct KeynoteExporter {
             throw ExportError.fileNotFound(resolved.path)
         }
 
-        let (appName, appPath) = findKeynoteApp()
+        // ── 1. Find and launch Keynote via NSWorkspace ─────────────────────────
+        guard let keynoteURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Keynote") else {
+            throw ExportError.keynoteNotFound
+        }
 
-        // Pre-launch Keynote
-        let launcher = Process()
-        launcher.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        launcher.arguments = ["-a", appPath]
-        try? launcher.run()
+        let isRunning = NSWorkspace.shared.runningApplications
+            .contains { $0.bundleIdentifier == "com.apple.Keynote" }
+        if !isRunning {
+            let cfg = NSWorkspace.OpenConfiguration()
+            cfg.activates = false
+            cfg.hides = true
+            try? await NSWorkspace.shared.openApplication(at: keynoteURL, configuration: cfg)
+        }
+
+        // Wait up to 15 s for Keynote to appear in the process list
+        for _ in 0..<30 {
+            if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Keynote" }) { break }
+            try await Task.sleep(for: .milliseconds(500))
+        }
+        guard NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Keynote" }) else {
+            throw ExportError.exportFailed("Keynote did not start within 15 seconds.")
+        }
+        // Give Keynote's scripting bridge a moment to initialise
         try await Task.sleep(for: .seconds(2))
 
-        // Write PPTX to a temp path
+        // ── 2. Prepare output path ─────────────────────────────────────────────
         let pptxURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("pptx")
 
-        let script = buildAppleScript(keynotePath: resolved.path, pptxPath: pptxURL.path, appName: appName)
+        let scriptSource = buildAppleScript(keynotePath: resolved.path, pptxPath: pptxURL.path)
 
-        // Write script to a temp file and execute
-        let scriptURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("applescript")
-        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-        defer { try? FileManager.default.removeItem(at: scriptURL) }
-
+        // ── 3. Execute via NSAppleScript in our own process ────────────────────
+        // For a non-sandboxed app with Hardened Runtime, NSAppleScript in-process
+        // is the correct approach. The TCC Automation consent prompt appears to the
+        // user the first time (because NSAppleEventsUsageDescription is set in
+        // Info.plist). We dispatch on DispatchQueue.main so the system can present
+        // the prompt and so the Apple Events framework runs in the expected context.
         return try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = [scriptURL.path]
+            DispatchQueue.main.async {
+                let script = NSAppleScript(source: scriptSource)
+                var errDict: NSDictionary?
+                script?.executeAndReturnError(&errDict)
 
-            let stderrPipe = Pipe()
-            let stdoutPipe = Pipe()
-            process.standardError = stderrPipe
-            process.standardOutput = stdoutPipe
-
-            // Timeout watchdog
-            let deadline = DispatchTime.now() + .seconds(180)
-            DispatchQueue.global().asyncAfter(deadline: deadline) {
-                if process.isRunning {
-                    process.terminate()
-                    continuation.resume(throwing: ExportError.timeout)
-                }
-            }
-
-            process.terminationHandler = { p in
-                if p.terminationStatus != 0 {
-                    let errData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errText = String(data: errData, encoding: .utf8) ?? "unknown error"
-                    continuation.resume(throwing: ExportError.exportFailed(errText))
+                if let err = errDict {
+                    let msg = (err[NSAppleScript.errorMessage] as? String)
+                           ?? (err[NSAppleScript.errorBriefMessage] as? String)
+                           ?? err.description
+                    continuation.resume(throwing: ExportError.exportFailed(msg))
                     return
                 }
-                guard FileManager.default.fileExists(atPath: pptxURL.path),
-                      (try? FileManager.default.attributesOfItem(atPath: pptxURL.path)[.size] as? Int ?? 0) ?? 0 > 0
+
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: pptxURL.path),
+                      (try? fm.attributesOfItem(atPath: pptxURL.path)[.size] as? Int ?? 0) ?? 0 > 0
                 else {
                     continuation.resume(throwing: ExportError.emptyOutput)
                     return
                 }
                 continuation.resume(returning: pptxURL.path)
             }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: ExportError.exportFailed(error.localizedDescription))
-            }
         }
     }
 
-    // MARK: - Private
+    // MARK: - Private helpers
 
     private static func resolveURL(_ url: URL) throws -> URL {
-        // Try symlink resolution first
         let resolved = url.resolvingSymlinksInPath()
         if FileManager.default.fileExists(atPath: resolved.path) { return resolved }
 
-        // Try brctl download for iCloud placeholders
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/brctl")
         process.arguments = ["download", url.path]
         try? process.run()
         process.waitUntilExit()
 
-        // Wait up to 10 s for file to materialise
         for _ in 0..<10 {
             Thread.sleep(forTimeInterval: 1)
             if FileManager.default.fileExists(atPath: url.path) { return url }
         }
-
         return url
     }
 
-    private static func findKeynoteApp() -> (name: String, path: String) {
-        let dirs = ["/Applications", "/System/Applications",
-                    NSString("~/Applications").expandingTildeInPath]
-        for dir in dirs {
-            guard let entries = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
-            for entry in entries where entry.hasSuffix(".app") && entry.lowercased().contains("keynote") {
-                let name = String(entry.dropLast(4)) // strip .app
-                return (name, "\(dir)/\(entry)")
-            }
-        }
-        return ("Keynote", "/Applications/Keynote.app")
-    }
-
-    private static func buildAppleScript(keynotePath: String, pptxPath: String, appName: String) -> String {
-        let ks = keynotePath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let ps = pptxPath.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let name = appName.replacingOccurrences(of: "\"", with: "\\\"")
+    private static func buildAppleScript(keynotePath: String, pptxPath: String) -> String {
+        let ks = keynotePath
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let ps = pptxPath
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
         return """
-tell application "\(name)"
-    repeat 30 times
-        if running then exit repeat
-        delay 0.5
-    end repeat
+tell application id "com.apple.Keynote"
     set targetDoc to open POSIX file "\(ks)"
     repeat 60 times
         try

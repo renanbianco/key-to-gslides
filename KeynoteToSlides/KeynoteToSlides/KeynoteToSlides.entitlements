@@ -6,10 +6,6 @@
     <key>com.apple.security.app-sandbox</key>
     <false/>
 
-    <!-- Send Apple Events to Keynote to trigger export -->
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
-
     <!--
         Required for the embedded Python runtime (hardened runtime exceptions):
 
