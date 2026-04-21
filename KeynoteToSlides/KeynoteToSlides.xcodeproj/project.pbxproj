@@ -27,6 +27,7 @@
 		B2000001000000000000AA15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB15 /* Assets.xcassets */; };
 		B2000001000000000000AA16 /* SavedFontsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB18 /* SavedFontsSheet.swift */; };
 		B2000001000000000000AA19 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB19 /* FontLoader.swift */; };
+		B2000001000000000000AA20 /* KeynoteExport.applescript in Resources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB20 /* KeynoteExport.applescript */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +54,7 @@
 		B2000001000000000000BB17 /* KeynoteToSlides.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KeynoteToSlides.entitlements; sourceTree = "<group>"; };
 		B2000001000000000000BB18 /* SavedFontsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedFontsSheet.swift; sourceTree = "<group>"; };
 		B2000001000000000000BB19 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
+		B2000001000000000000BB20 /* KeynoteExport.applescript */ = {isa = PBXFileReference; lastKnownFileType = text; path = KeynoteExport.applescript; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +72,7 @@
 			isa = PBXGroup;
 			children = (
 				00151DF62F971A3C00FAF1DC /* cli */,
+				B2000001000000000000BB20 /* KeynoteExport.applescript */,
 				CC000001000000000000AA01 /* client_secret.json */,
 				CC000002000000000000AA01 /* GoogleService-Info.plist */,
 			);
@@ -195,6 +198,7 @@
 			files = (
 				B2000001000000000000AA15 /* Assets.xcassets in Resources */,
 				00151DF72F971A3C00FAF1DC /* cli in Resources */,
+				B2000001000000000000AA20 /* KeynoteExport.applescript in Resources */,
 				CC000001000000000000AA02 /* client_secret.json in Resources */,
 				CC000002000000000000AA02 /* GoogleService-Info.plist in Resources */,
 			);

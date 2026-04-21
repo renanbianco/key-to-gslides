@@ -283,16 +283,27 @@ struct ContentView: View {
     @ViewBuilder
     private var actionButton: some View {
         if case .done(let url) = appState.phase {
-            Button {
-                NSWorkspace.shared.open(url)
-            } label: {
-                HStack(spacing: 6) {
-                    Text("Open in Google Slides")
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 11))
+            VStack(spacing: 6) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Open in Google Slides")
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11))
+                    }
                 }
+                .buttonStyle(PrimaryActionButtonStyle(filled: true, tone: DS.green))
+
+                Button("Convert another file") {
+                    appState.phase = .idle
+                    appState.selectedFileURL = nil
+                    appState.uploadProgress = 0
+                    appState.progressMessage = ""
+                }
+                .buttonStyle(LinkButtonStyle(color: DS.muted))
+                .padding(.top, 2)
             }
-            .buttonStyle(PrimaryActionButtonStyle(filled: true, tone: DS.green))
             .padding(.horizontal, 22)
             .padding(.top, 10)
             .padding(.bottom, 12)

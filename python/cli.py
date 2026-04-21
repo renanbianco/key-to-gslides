@@ -35,12 +35,20 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent          # .../python/
 _PARENT = _HERE.parent                           # project root (dev) or Resources/ (bundle)
 
-for _candidate in [_HERE, _PARENT]:
+# PyInstaller sets sys._MEIPASS to the _internal/ directory where all
+# collected packages (including src/) are extracted.  When frozen we add
+# _MEIPASS to sys.path so `import src.xxx` works normally; when running
+# as plain source we walk up from cli.py to find the src/ directory.
+_MEIPASS = Path(getattr(sys, "_MEIPASS", ""))
+
+candidates = ([_MEIPASS] if _MEIPASS.is_dir() else []) + [_HERE, _PARENT]
+for _candidate in candidates:
     if (_candidate / "src").is_dir():
         sys.path.insert(0, str(_candidate))
         break
 else:
-    sys.exit("cli.py: cannot find src/ package next to cli.py or in parent directory")
+    if not _MEIPASS.is_dir():
+        sys.exit("cli.py: cannot find src/ package next to cli.py or in parent directory")
 
 
 # ── Emit helpers ──────────────────────────────────────────────────────────────

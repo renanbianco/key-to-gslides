@@ -3,73 +3,32 @@
 <plist version="1.0">
 <dict>
     <!-- ── Sandbox ──────────────────────────────────────────────────────────── -->
-    <!--
-        App Sandbox is required for Mac App Store distribution.
-        All file access flows through NSOpenPanel (user-selected) or
-        NSTemporaryDirectory() (container temp), both of which are permitted below.
-        Child processes (osascript, open, brctl, cli) inherit the parent sandbox.
-    -->
     <key>com.apple.security.app-sandbox</key>
     <true/>
 
-    <!-- ── Network ──────────────────────────────────────────────────────────── -->
-    <!-- Required for Google OAuth, Drive API, and Google Fonts API calls -->
-    <key>com.apple.security.network.client</key>
-    <true/>
-
     <!-- ── File access ──────────────────────────────────────────────────────── -->
-    <!--
-        Grants read/write access to files the user explicitly opens or saves
-        via NSOpenPanel / NSSavePanel. Covers the Keynote file the user selects.
-    -->
+    <!-- Required for NSOpenPanel to initialise and grant access to the file    -->
+    <!-- the user selects.  read-write is needed because the Python subprocess  -->
+    <!-- (child of this process) writes the converted PPTX back to the same    -->
+    <!-- sandbox-accessible temp directory.                                     -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
 
-    <!-- ── Downloads folder ───────────────────────────────────────────────────── -->
-    <!--
-        Required so our app can read the PPTX that Keynote (a separate sandboxed
-        process) exports to ~/Downloads. Keynote has its own Downloads access;
-        we need this entitlement to read the file back and then delete it.
-    -->
-    <key>com.apple.security.files.downloads.read-write</key>
+    <!-- ── Network ──────────────────────────────────────────────────────────── -->
+    <key>com.apple.security.network.client</key>
     <true/>
 
     <!-- ── Apple Events ─────────────────────────────────────────────────────── -->
-    <!--
-        Required to send Apple Events to Keynote (export to PPTX via AppleScript).
-        NSAppleEventsUsageDescription must also be set in Info.plist (already done).
-    -->
+    <!-- Required so macOS can show the Automation TCC prompt for Keynote.       -->
+    <!-- NSUserAppleScriptTask runs outside the sandbox, but the entitlement     -->
+    <!-- tells TCC that this app is allowed to automate other apps.              -->
     <key>com.apple.security.automation.apple-events</key>
     <true/>
 
-    <!-- ── Hardened Runtime exceptions (Python runtime requirements) ─────────── -->
-    <!--
-        allow-jit: Python's eval(), ctypes, and the lxml/Pillow C extensions call
-        mprotect(PROT_EXEC) to map JIT-compiled code executable. Without this the
-        kernel kills the process under hardened runtime.
-    -->
+    <!-- ── Hardened Runtime exceptions (Python / PyInstaller requirements) ──── -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
-
-    <!--
-        allow-unsigned-executable-memory: Needed by Pillow and lxml to map their
-        native C extension segments. Only required if the .so files aren't signed
-        with the same team ID as the app. After full codesigning of the onedir
-        bundle this may become unnecessary — remove and test.
-    -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
-
-    <!--
-        disable-library-validation: NOT used for the onedir build — each .so file
-        is individually codesigned by the build script, so dyld's library validation
-        passes without this exception. Keeping it commented out as a reminder.
-
-        (This entitlement IS needed for the legacy onefile build, where libraries
-        are extracted unsigned at runtime. The onedir build eliminates that need,
-        which is a prerequisite for Mac App Store acceptance.)
-    -->
-    <!-- <key>com.apple.security.cs.disable-library-validation</key> -->
-    <!-- <true/> -->
 </dict>
 </plist>

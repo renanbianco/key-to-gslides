@@ -193,41 +193,67 @@ def is_supported(font_name: str) -> bool:
 
 
 def extract_fonts_from_pptx(pptx_path: str) -> set[str]:
-    """Return the set of all font names used in a PPTX file."""
+    """Return the set of all font names used in a PPTX file.
+
+    Keynote-exported PPTX files store most fonts as XML attributes on
+    <a:latin>, <a:ea>, and <a:cs> elements rather than on run.font.name
+    (which is None when the font is inherited from the theme or layout).
+    We therefore scan the raw XML of every part of the document.
+
+    Theme font placeholders (+mj-lt, +mn-lt, etc.) are resolved to the
+    actual typeface name declared in each slide master's font scheme.
+    """
     prs = Presentation(pptx_path)
     fonts: set[str] = set()
 
-    def _collect(run_or_para):
-        if hasattr(run_or_para, "font"):
-            name = run_or_para.font.name
-            if name:
-                fonts.add(name)
+    NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    tag_latin = f"{{{NS_A}}}latin"
+    tag_ea    = f"{{{NS_A}}}ea"
+    tag_cs    = f"{{{NS_A}}}cs"
 
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if shape.has_text_frame:
-                for para in shape.text_frame.paragraphs:
-                    _collect(para)
-                    for run in para.runs:
-                        _collect(run)
-            # Table cells
-            if shape.has_table:
-                for row in shape.table.rows:
-                    for cell in row.cells:
-                        for para in cell.text_frame.paragraphs:
-                            _collect(para)
-                            for run in para.runs:
-                                _collect(run)
+    def _scan_xml(element):
+        """Collect every explicit typeface name in an XML subtree."""
+        for tag in (tag_latin, tag_ea, tag_cs):
+            for elem in element.iter(tag):
+                typeface = elem.get("typeface", "")
+                # +mj-lt / +mn-lt / +mj-ea etc. are theme-font placeholders;
+                # we resolve them separately below.
+                if typeface and not typeface.startswith("+"):
+                    fonts.add(typeface)
 
-    # Also check slide layout and master defaults
+    # ── Slides ────────────────────────────────────────────────────────────────
     for slide in prs.slides:
-        if slide.slide_layout and slide.slide_layout.placeholders:
-            for ph in slide.slide_layout.placeholders:
-                if ph.has_text_frame:
-                    for para in ph.text_frame.paragraphs:
-                        _collect(para)
-                        for run in para.runs:
-                            _collect(run)
+        _scan_xml(slide.element)
+
+    # ── Slide masters and layouts ─────────────────────────────────────────────
+    for master in prs.slide_masters:
+        _scan_xml(master.element)
+        for layout in master.slide_layouts:
+            _scan_xml(layout.element)
+
+    # ── Theme font scheme (resolves +mj-lt / +mn-lt placeholders) ────────────
+    # The font scheme lives inside each slide master's theme element:
+    #   <a:fontScheme>
+    #     <a:majorFont><a:latin typeface="Helvetica Neue"/></a:majorFont>
+    #     <a:minorFont><a:latin typeface="Helvetica Neue"/></a:minorFont>
+    #   </a:fontScheme>
+    tag_fontScheme  = f"{{{NS_A}}}fontScheme"
+    tag_majorFont   = f"{{{NS_A}}}majorFont"
+    tag_minorFont   = f"{{{NS_A}}}minorFont"
+
+    for master in prs.slide_masters:
+        scheme = master.element.find(f".//{tag_fontScheme}")
+        if scheme is None:
+            continue
+        for section_tag in (tag_majorFont, tag_minorFont):
+            section = scheme.find(section_tag)
+            if section is None:
+                continue
+            latin = section.find(tag_latin)
+            if latin is not None:
+                typeface = latin.get("typeface", "")
+                if typeface and not typeface.startswith("+"):
+                    fonts.add(typeface)
 
     return fonts
 

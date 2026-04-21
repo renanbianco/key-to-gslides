@@ -19,7 +19,14 @@ extension AppState {
         }
 
         do {
-            // 0. Warn that Keynote will open/close automatically
+            // 0a. One-time setup: install the Keynote export helper script
+            //     The sandbox prevents FileManager writes to Application Scripts;
+            //     NSSavePanel (powerbox) grants access and saves a security-scoped bookmark.
+            if KeynoteExporter.installedScriptURL == nil {
+                try await KeynoteExporter.installScript()
+            }
+
+            // 0b. Warn that Keynote will open/close automatically
             let proceed: Bool = await withCheckedContinuation { continuation in
                 keynoteContinuation = continuation
                 showKeynoteWarningSheet = true
