@@ -80,12 +80,11 @@ final class AppState: ObservableObject {
     // ── Sheet / dialog state ─────────────────────────────────────────────────
     @Published var pendingUnsupportedFonts: [String] = []
     @Published var showFontReplacementSheet: Bool = false
-    @Published var pendingVideoNames: [String] = []
-    @Published var showVideoWarningSheet: Bool = false
+    @Published var showKeynoteWarningSheet: Bool = false
 
     // Continuation holders — not @Published, used only on MainActor
     var fontContinuation: CheckedContinuation<[String: String]?, Never>?
-    var videoContinuation: CheckedContinuation<Bool, Never>?
+    var keynoteContinuation: CheckedContinuation<Bool, Never>?
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
     init() { loadSavedFontReplacements() }
@@ -98,10 +97,10 @@ final class AppState: ObservableObject {
         fontContinuation = nil
     }
 
-    func submitVideoWarning(proceed: Bool) {
-        showVideoWarningSheet = false
-        videoContinuation?.resume(returning: proceed)
-        videoContinuation = nil
+    func submitKeynoteWarning(proceed: Bool) {
+        showKeynoteWarningSheet = false
+        keynoteContinuation?.resume(returning: proceed)
+        keynoteContinuation = nil
     }
 
     // MARK: - Font replacement persistence (UserDefaults)
@@ -118,6 +117,12 @@ final class AppState: ObservableObject {
         merged.merge(replacements) { _, new in new }
         savedFontReplacements = merged
         UserDefaults.standard.set(merged, forKey: kFontReplacements)
+    }
+
+    /// Fully replaces the saved map (used by SavedFontsSheet after editing).
+    func setFontReplacements(_ replacements: [String: String]) {
+        savedFontReplacements = replacements
+        UserDefaults.standard.set(replacements, forKey: kFontReplacements)
     }
 
     func clearFontReplacements() {

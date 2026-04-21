@@ -29,14 +29,16 @@ struct KeynoteExporter {
             throw ExportError.fileNotFound(resolved.path)
         }
 
-        // ── 1. Find and launch Keynote via NSWorkspace ─────────────────────────
+        // ── 1. Find Keynote ────────────────────────────────────────────────────
         guard let keynoteURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Keynote") else {
             throw ExportError.keynoteNotFound
         }
 
-        let isRunning = NSWorkspace.shared.runningApplications
+        // ── 2. Launch via NSWorkspace (the sandbox-safe API) ──────────────────
+        let alreadyRunning = NSWorkspace.shared.runningApplications
             .contains { $0.bundleIdentifier == "com.apple.Keynote" }
-        if !isRunning {
+
+        if !alreadyRunning {
             let cfg = NSWorkspace.OpenConfiguration()
             cfg.activates = false
             cfg.hides = true
@@ -44,39 +46,47 @@ struct KeynoteExporter {
         }
 
         // Wait up to 15 s for Keynote to appear in the process list
-        for _ in 0..<30 {
-            if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Keynote" }) { break }
+        var waited = 0
+        while waited < 30 {
+            if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Keynote" }) {
+                break
+            }
             try await Task.sleep(for: .milliseconds(500))
+            waited += 1
         }
         guard NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Keynote" }) else {
             throw ExportError.exportFailed("Keynote did not start within 15 seconds.")
         }
-        // Give Keynote's scripting bridge a moment to initialise
+        // Give Keynote a moment to finish initialising its scripting bridge
         try await Task.sleep(for: .seconds(2))
 
-        // ── 2. Prepare output path ─────────────────────────────────────────────
-        let pptxURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent(UUID().uuidString)
+        // ── 3. Prepare output path ────────────────────────────────────────────
+        // Export to ~/Downloads — Keynote (with its own Downloads access) can write
+        // there, and our app (com.apple.security.files.downloads.read-write) can
+        // read it back afterwards.
+        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let pptxURL = downloadsURL
+            .appendingPathComponent("kts_\(UUID().uuidString)")
             .appendingPathExtension("pptx")
 
         let scriptSource = buildAppleScript(keynotePath: resolved.path, pptxPath: pptxURL.path)
 
-        // ── 3. Execute via NSAppleScript in our own process ────────────────────
-        // For a non-sandboxed app with Hardened Runtime, NSAppleScript in-process
-        // is the correct approach. The TCC Automation consent prompt appears to the
-        // user the first time (because NSAppleEventsUsageDescription is set in
-        // Info.plist). We dispatch on DispatchQueue.main so the system can present
-        // the prompt and so the Apple Events framework runs in the expected context.
+        // ── 4. Run NSAppleScript on the main thread ────────────────────────────
+        // NSAppleScript must run on the main thread so that:
+        //  • The macOS Automation permission prompt can be presented to the user.
+        //  • Apple Events are dispatched from the correct process context.
+        // The outer async function is *suspended* at this await, so the main thread
+        // is free for DispatchQueue.main.async to execute on it.
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
-                let script = NSAppleScript(source: scriptSource)
-                var errDict: NSDictionary?
-                script?.executeAndReturnError(&errDict)
+                let appleScript = NSAppleScript(source: scriptSource)
+                var errorDict: NSDictionary?
+                appleScript?.executeAndReturnError(&errorDict)
 
-                if let err = errDict {
-                    let msg = (err[NSAppleScript.errorMessage] as? String)
-                           ?? (err[NSAppleScript.errorBriefMessage] as? String)
-                           ?? err.description
+                if let error = errorDict {
+                    let msg = (error[NSAppleScript.errorMessage] as? String)
+                           ?? (error[NSAppleScript.errorBriefMessage] as? String)
+                           ?? error.description
                     continuation.resume(throwing: ExportError.exportFailed(msg))
                     return
                 }
@@ -88,7 +98,19 @@ struct KeynoteExporter {
                     continuation.resume(throwing: ExportError.emptyOutput)
                     return
                 }
-                continuation.resume(returning: pptxURL.path)
+
+                // Move from Downloads into our container tmp so the rest of the
+                // pipeline (PythonRunner) can work with it there.
+                let containerURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension("pptx")
+                do {
+                    try fm.moveItem(at: pptxURL, to: containerURL)
+                    continuation.resume(returning: containerURL.path)
+                } catch {
+                    // If the move fails, hand back the Downloads path directly
+                    continuation.resume(returning: pptxURL.path)
+                }
             }
         }
     }

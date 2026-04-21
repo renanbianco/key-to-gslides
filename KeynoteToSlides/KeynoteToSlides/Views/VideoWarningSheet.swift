@@ -1,61 +1,89 @@
 // VideoWarningSheet.swift
+// Repurposed as the "Keynote will open automatically" heads-up shown before conversion starts.
+// Rendered as an in-window overlay by ContentView (same pattern as FontReplacementSheet).
+
 import SwiftUI
 
-struct VideoWarningSheet: View {
+struct KeynoteWarningSheet: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "video.slash.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-                .padding(.top, 8)
-
-            Text("Embedded videos detected")
-                .font(.title2.bold())
-
-            Text("Google Slides doesn't support embedded video import. \(appState.pendingVideoNames.count) video(s) will be removed to allow conversion.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 340)
-
-            if !appState.pendingVideoNames.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(appState.pendingVideoNames.prefix(5)), id: \.self) { name in
-                        Label(name, systemImage: "film")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if appState.pendingVideoNames.count > 5 {
-                        Text("…and \(appState.pendingVideoNames.count - 5) more")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
-            }
-
-            HStack(spacing: 12) {
-                Button("Cancel", role: .cancel) {
-                    appState.submitVideoWarning(proceed: false)
-                }
-                Button("Continue without videos") {
-                    appState.submitVideoWarning(proceed: true)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-            }
-            .padding(.bottom, 8)
+        VStack(spacing: 0) {
+            header
+            Divider()
+            messageBody
+            Divider()
+            footer
         }
-        .padding(32)
-        .frame(width: 420)
+        .background(DS.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .shadow(color: .black.opacity(0.28), radius: 25, y: 12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 11)
+                .stroke(Color.black.opacity(0.10), lineWidth: 0.5)
+        )
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Keynote will open automatically")
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(DS.ink)
+                .tracking(-0.15)
+            Text("The app needs to control Keynote to export your presentation.")
+                .font(.system(size: 11.5))
+                .foregroundColor(DS.muted)
+                .tracking(-0.05)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 12)
+    }
+
+    private var messageBody: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 20))
+                .foregroundColor(DS.blue)
+                .padding(.top, 1)
+            Text("Keynote may open and close on its own during the export. Please don't interact with it or switch windows until the conversion is complete.")
+                .font(.system(size: 12))
+                .foregroundColor(DS.ink2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 10) {
+            Spacer()
+            Button("Cancel") {
+                appState.submitKeynoteWarning(proceed: false)
+            }
+            .buttonStyle(SmallOutlineButtonStyle())
+
+            Button("Start converting") {
+                appState.submitKeynoteWarning(proceed: true)
+            }
+            .buttonStyle(PrimaryActionButtonStyle(filled: true))
+            .frame(width: 140)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(DS.bg3)
     }
 }
 
 #Preview {
-    let state = AppState()
-    state.pendingVideoNames = ["intro.mp4", "demo.mov", "outro.mp4"]
-    return VideoWarningSheet().environmentObject(state)
+    ZStack {
+        Color.black.opacity(0.28).ignoresSafeArea()
+        KeynoteWarningSheet()
+            .environmentObject(AppState())
+            .frame(width: 420)
+            .padding(.top, 46)
+    }
+    .frame(width: 480, height: 400)
 }

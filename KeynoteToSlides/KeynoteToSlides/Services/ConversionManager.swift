@@ -19,6 +19,16 @@ extension AppState {
         }
 
         do {
+            // 0. Warn that Keynote will open/close automatically
+            let proceed: Bool = await withCheckedContinuation { continuation in
+                keynoteContinuation = continuation
+                showKeynoteWarningSheet = true
+            }
+            guard proceed else {
+                phase = .idle
+                return
+            }
+
             // 1. Export Keynote → PPTX
             phase = .exporting
             pptxPath = try await KeynoteExporter.export(from: fileURL)
@@ -32,7 +42,9 @@ extension AppState {
                 // Pause and show font replacement sheet
                 let replacements: [String: String]? = await withCheckedContinuation { continuation in
                     fontContinuation = continuation
-                    pendingUnsupportedFonts = fontResult.unsupported
+                    // Deduplicate — the same font can appear in multiple slides/shapes
+                    var seen = Set<String>()
+                    pendingUnsupportedFonts = fontResult.unsupported.filter { seen.insert($0).inserted }
                     showFontReplacementSheet = true
                 }
 
@@ -54,21 +66,9 @@ extension AppState {
                 }
             }
 
-            // 4. Check for videos
+            // 4. Check for videos (stripped silently — no user prompt)
             phase = .checkingVideos
             let videoResult = try await PythonRunner.shared.hasVideos(pptxPath: uploadSource)
-
-            if videoResult.hasVideos {
-                let proceed: Bool = await withCheckedContinuation { continuation in
-                    videoContinuation = continuation
-                    pendingVideoNames = videoResult.videoNames
-                    showVideoWarningSheet = true
-                }
-                guard proceed else {
-                    phase = .idle
-                    return  // user cancelled
-                }
-            }
 
             // 5. Compress if needed (>95 MB or has videos to strip)
             let fileSize = (try? FileManager.default.attributesOfItem(atPath: uploadSource)[.size] as? Int) ?? 0

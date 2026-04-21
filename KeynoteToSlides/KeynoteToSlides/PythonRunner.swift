@@ -7,11 +7,12 @@
 //           1×  {"type":"result", …command-specific fields…}
 //            OR {"type":"error","message":"…"}  + exit code 1
 //
-// Path resolution:
-//   Dev  : python executable = /usr/bin/python3
-//          cli.py            = <repo>/python/cli.py   (found via #filePath)
-//   Bundle: python executable = Contents/Resources/python-runtime/bin/python3
-//          cli.py            = Contents/Resources/python/cli.py
+// Path resolution (three tiers, checked in order):
+//   Bundled binary : Contents/Resources/cli  (PyInstaller one-file binary)
+//                    → called directly, no Python interpreter needed
+//   Bundle + python: Contents/Resources/python-runtime/bin/python3 + cli.py
+//                    → legacy embedded-python layout
+//   Dev            : /usr/bin/python3 + <repo>/python/cli.py  (via #filePath)
 
 import Foundation
 
@@ -51,7 +52,22 @@ final class PythonRunner: Sendable {
 
     // MARK: Path resolution
 
-    /// Path to the Python executable.
+    /// Path to the PyInstaller CLI executable bundled in the app (highest priority).
+    /// Supports two layouts produced by the build script:
+    ///   onedir (App Store): Contents/Resources/cli/cli   ← preferred
+    ///   onefile (legacy):   Contents/Resources/cli        ← fallback
+    private var bundledCLIBinaryPath: String? {
+        guard let resources = Bundle.main.resourcePath else { return nil }
+        // One-directory layout (Mac App Store compatible — all .so files are individually signed)
+        let oneDirBin = resources + "/cli/cli"
+        if FileManager.default.fileExists(atPath: oneDirBin) { return oneDirBin }
+        // One-file layout (notarized direct distribution)
+        let oneFileBin = resources + "/cli"
+        if FileManager.default.fileExists(atPath: oneFileBin) { return oneFileBin }
+        return nil
+    }
+
+    /// Path to the Python executable (fallback when no bundled binary exists).
     private var pythonExecutable: String {
         // Bundle path takes priority (embedded python-build-standalone runtime)
         if let resources = Bundle.main.resourcePath {
@@ -59,11 +75,10 @@ final class PythonRunner: Sendable {
             if FileManager.default.fileExists(atPath: bundlePy) { return bundlePy }
         }
         // Development: use the system python3
-        let system = "/usr/bin/python3"
-        return system
+        return "/usr/bin/python3"
     }
 
-    /// Path to the cli.py entry point.
+    /// Path to the cli.py entry point (used when running with a Python interpreter).
     private var cliPath: String {
         // Bundle: Contents/Resources/python/cli.py
         if let resources = Bundle.main.resourcePath {
@@ -84,7 +99,8 @@ final class PythonRunner: Sendable {
         return devCli
     }
 
-    /// Environment for the subprocess: adds bundled site-packages to PYTHONPATH.
+    /// Environment for the subprocess.
+    /// Adds bundled site-packages to PYTHONPATH when running with an interpreter.
     private var subprocessEnvironment: [String: String] {
         var env = ProcessInfo.processInfo.environment
         if let resources = Bundle.main.resourcePath {
@@ -114,11 +130,14 @@ final class PythonRunner: Sendable {
         onProgress: (@Sendable @MainActor (PythonProgress) -> Void)? = nil
     ) async throws -> [String: Any] {
 
-        guard FileManager.default.fileExists(atPath: pythonExecutable) else {
-            throw PythonRunnerError.pythonNotFound
-        }
-        guard FileManager.default.fileExists(atPath: cliPath) else {
-            throw PythonRunnerError.cliNotFound
+        // Validate paths — bundled binary takes priority over python interpreter
+        if bundledCLIBinaryPath == nil {
+            guard FileManager.default.fileExists(atPath: pythonExecutable) else {
+                throw PythonRunnerError.pythonNotFound
+            }
+            guard FileManager.default.fileExists(atPath: cliPath) else {
+                throw PythonRunnerError.cliNotFound
+            }
         }
 
         // Encode request
@@ -152,9 +171,16 @@ final class PythonRunner: Sendable {
     ) throws -> [String: Any] {
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: pythonExecutable)
-        process.arguments     = [cliPath]
-        process.environment   = subprocessEnvironment
+        if let binary = bundledCLIBinaryPath {
+            // PyInstaller one-file binary — call it directly with no arguments
+            process.executableURL = URL(fileURLWithPath: binary)
+            process.arguments     = []
+        } else {
+            // Python interpreter + cli.py (dev or legacy bundle layout)
+            process.executableURL = URL(fileURLWithPath: pythonExecutable)
+            process.arguments     = [cliPath]
+        }
+        process.environment = subprocessEnvironment
 
         let stdinPipe  = Pipe()
         let stdoutPipe = Pipe()

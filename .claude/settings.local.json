@@ -12,7 +12,12 @@
       "Bash(/usr/libexec/PlistBuddy -c \"Print CFBundleIdentifier\" \"/Applications/Keynote Creator Studio.app/Contents/Info.plist\")",
       "Bash(python3 -)",
       "Bash(python3 python/cli.py)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(tccutil reset *)",
+      "Bash(git -C \"/Users/renanbianco/vibe coding/key to gslides/KeynoteToSlides\" show 0663f63:KeynoteToSlides/ContentView.swift)",
+      "Bash(git -C \"/Users/renanbianco/vibe coding/key to gslides/KeynoteToSlides\" show 0663f63 --name-only)",
+      "Bash(git -C \"/Users/renanbianco/vibe coding/key to gslides\" show 0663f63:KeynoteToSlides/KeynoteToSlides/ContentView.swift)",
+      "Bash(xcodebuild -scheme KeynoteToSlides -configuration Debug build)"
     ]
   }
 }

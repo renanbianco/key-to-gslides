@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00151DF72F971A3C00FAF1DC /* cli in Resources */ = {isa = PBXBuildFile; fileRef = 00151DF62F971A3C00FAF1DC /* cli */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		CC000001000000000000AA02 /* client_secret.json in Resources */ = {isa = PBXBuildFile; fileRef = CC000001000000000000AA01 /* client_secret.json */; };
+		CC000002000000000000AA02 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CC000002000000000000AA01 /* GoogleService-Info.plist */; };
 		B2000001000000000000AA01 /* KeynoteToSlidesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB01 /* KeynoteToSlidesApp.swift */; };
 		B2000001000000000000AA02 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB02 /* AppState.swift */; };
 		B2000001000000000000AA03 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB03 /* Models.swift */; };
@@ -21,13 +24,15 @@
 		B2000001000000000000AA12 /* DropZoneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB12 /* DropZoneView.swift */; };
 		B2000001000000000000AA13 /* FontReplacementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB13 /* FontReplacementSheet.swift */; };
 		B2000001000000000000AA14 /* VideoWarningSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB14 /* VideoWarningSheet.swift */; };
-		CC000004000000000000AA02 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000BB02 /* GoogleService-Info.plist */; };
-		CC000004000000000000AA01 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC000004000000000000BB01 /* FontLoader.swift */; };
 		B2000001000000000000AA15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB15 /* Assets.xcassets */; };
-		/* Info.plist is referenced via INFOPLIST_FILE setting — not added to Resources */
+		B2000001000000000000AA16 /* SavedFontsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB18 /* SavedFontsSheet.swift */; };
+		B2000001000000000000AA19 /* FontLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001000000000000BB19 /* FontLoader.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		00151DF62F971A3C00FAF1DC /* cli */ = {isa = PBXFileReference; lastKnownFileType = folder; path = cli; sourceTree = "<group>"; };
+		CC000001000000000000AA01 /* client_secret.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = client_secret.json; path = ../credentials/client_secret.json; sourceTree = SOURCE_ROOT; };
+		CC000002000000000000AA01 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = ../credentials/GoogleService-Info.plist; sourceTree = SOURCE_ROOT; };
 		B2000001000000000000BB00 /* KeynoteToSlides.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KeynoteToSlides.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2000001000000000000BB01 /* KeynoteToSlidesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeynoteToSlidesApp.swift; sourceTree = "<group>"; };
 		B2000001000000000000BB02 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -46,21 +51,32 @@
 		B2000001000000000000BB15 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B2000001000000000000BB16 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B2000001000000000000BB17 /* KeynoteToSlides.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KeynoteToSlides.entitlements; sourceTree = "<group>"; };
-		CC000004000000000000BB01 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
-		CC000004000000000000BB02 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = ../credentials/GoogleService-Info.plist; sourceTree = SOURCE_ROOT; };
+		B2000001000000000000BB18 /* SavedFontsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedFontsSheet.swift; sourceTree = "<group>"; };
+		B2000001000000000000BB19 /* FontLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FontLoader.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		B2000001000000000000CC03 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		B2000001000000000000DD00 /* MainGroup */ = {
+		00151DF52F97194B00FAF1DC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				00151DF62F971A3C00FAF1DC /* cli */,
+				CC000001000000000000AA01 /* client_secret.json */,
+				CC000002000000000000AA01 /* GoogleService-Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		B2000001000000000000DD00 = {
 			isa = PBXGroup;
 			children = (
 				B2000001000000000000DD01 /* KeynoteToSlides */,
@@ -76,13 +92,13 @@
 				B2000001000000000000BB03 /* Models.swift */,
 				B2000001000000000000BB04 /* PythonRunner.swift */,
 				B2000001000000000000BB05 /* ContentView.swift */,
-					CC000004000000000000BB01 /* FontLoader.swift */,
-					CC000004000000000000BB02 /* GoogleService-Info.plist */,
+				B2000001000000000000BB19 /* FontLoader.swift */,
 				B2000001000000000000DD03 /* Services */,
 				B2000001000000000000DD04 /* Views */,
 				B2000001000000000000BB15 /* Assets.xcassets */,
 				B2000001000000000000BB16 /* Info.plist */,
 				B2000001000000000000BB17 /* KeynoteToSlides.entitlements */,
+				00151DF52F97194B00FAF1DC /* Resources */,
 			);
 			path = KeynoteToSlides;
 			sourceTree = "<group>";
@@ -114,6 +130,7 @@
 				B2000001000000000000BB12 /* DropZoneView.swift */,
 				B2000001000000000000BB13 /* FontReplacementSheet.swift */,
 				B2000001000000000000BB14 /* VideoWarningSheet.swift */,
+				B2000001000000000000BB18 /* SavedFontsSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -129,8 +146,10 @@
 				B2000001000000000000CC02 /* Resources */,
 				B2000001000000000000CC03 /* Frameworks */,
 			);
-			buildRules = ();
-			dependencies = ();
+			buildRules = (
+			);
+			dependencies = (
+			);
 			name = KeynoteToSlides;
 			productName = KeynoteToSlides;
 			productReference = B2000001000000000000BB00 /* KeynoteToSlides.app */;
@@ -144,7 +163,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					B2000001000000000000EE00 = {
 						CreatedOnToolsVersion = 16.0;
@@ -155,8 +174,11 @@
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			knownRegions = (en, Base);
-			mainGroup = B2000001000000000000DD00 /* MainGroup */;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B2000001000000000000DD00;
 			productRefGroup = B2000001000000000000DD02 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -171,8 +193,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-					CC000004000000000000AA02 /* GoogleService-Info.plist in Resources */,
 				B2000001000000000000AA15 /* Assets.xcassets in Resources */,
+				00151DF72F971A3C00FAF1DC /* cli in Resources */,
+				CC000001000000000000AA02 /* client_secret.json in Resources */,
+				CC000002000000000000AA02 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -188,7 +212,6 @@
 				B2000001000000000000AA03 /* Models.swift in Sources */,
 				B2000001000000000000AA04 /* PythonRunner.swift in Sources */,
 				B2000001000000000000AA05 /* ContentView.swift in Sources */,
-					CC000004000000000000AA01 /* FontLoader.swift in Sources */,
 				B2000001000000000000AA06 /* GoogleAuth.swift in Sources */,
 				B2000001000000000000AA07 /* KeynoteExporter.swift in Sources */,
 				B2000001000000000000AA08 /* DriveUploader.swift in Sources */,
@@ -198,6 +221,8 @@
 				B2000001000000000000AA12 /* DropZoneView.swift in Sources */,
 				B2000001000000000000AA13 /* FontReplacementSheet.swift in Sources */,
 				B2000001000000000000AA14 /* VideoWarningSheet.swift in Sources */,
+				B2000001000000000000AA16 /* SavedFontsSheet.swift in Sources */,
+				B2000001000000000000AA19 /* FontLoader.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -213,6 +238,9 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
@@ -221,8 +249,10 @@
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -230,6 +260,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -238,7 +269,10 @@
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
@@ -251,6 +285,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -265,6 +300,9 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_EMPTY_BODY = YES;
@@ -272,8 +310,10 @@
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_CYCLE = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -281,6 +321,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -297,6 +338,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -306,16 +348,23 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = KeynoteToSlides/KeynoteToSlides.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeynoteToSlides/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				INFOPLIST_KEY_CFBundleDisplayName = "Keynote to Google Slides";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.renanbianco.KeynoteToSlides;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -332,16 +381,23 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = KeynoteToSlides/KeynoteToSlides.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = KeynoteToSlides/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks");
+				INFOPLIST_KEY_CFBundleDisplayName = "Keynote to Google Slides";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.renanbianco.KeynoteToSlides;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -375,7 +431,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = B2000001000000000000PROJ /* Project object */;
 }

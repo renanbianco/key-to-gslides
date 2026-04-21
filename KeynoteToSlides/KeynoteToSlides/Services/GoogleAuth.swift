@@ -1,6 +1,7 @@
 // GoogleAuth.swift
 import Foundation
-import Network
+import AuthenticationServices
+import CryptoKit
 import AppKit
 
 // MARK: - Errors
@@ -8,7 +9,7 @@ import AppKit
 enum AuthError: LocalizedError {
     case clientSecretNotFound
     case invalidClientSecret
-    case noFreePort
+    case oauthCancelled
     case oauthError(String)
     case tokenExchangeFailed(String)
     case noRefreshToken
@@ -16,15 +17,43 @@ enum AuthError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .clientSecretNotFound: return "client_secret.json not found. Place it in the app bundle or credentials/ folder."
-        case .invalidClientSecret: return "client_secret.json is malformed."
-        case .noFreePort: return "Could not find a free local port for OAuth redirect."
-        case .oauthError(let e): return "Google OAuth error: \(e)"
+        case .clientSecretNotFound:
+            return "Credentials file not found. Add client_secret.json or GoogleService-Info.plist to the bundle or credentials/ folder."
+        case .invalidClientSecret:    return "Credentials file is malformed."
+        case .oauthCancelled:         return "Sign-in was cancelled."
+        case .oauthError(let e):      return "Google OAuth error: \(e)"
         case .tokenExchangeFailed(let e): return "Token exchange failed: \(e)"
-        case .noRefreshToken: return "No refresh token available. Please sign in again."
-        case .networkError(let e): return "Network error: \(e)"
+        case .noRefreshToken:         return "No refresh token available. Please sign in again."
+        case .networkError(let e):    return "Network error: \(e)"
         }
     }
+}
+
+// MARK: - Presentation context provider
+
+private final class AuthPresentationProvider: NSObject,
+                                              ASWebAuthenticationPresentationContextProviding,
+                                              @unchecked Sendable {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        NSApp.keyWindow ?? NSApp.windows.first ?? NSWindow()
+    }
+}
+
+// MARK: - OAuthCredentials (unified across client types)
+
+private struct OAuthCredentials {
+    /// OAuth client ID.
+    let clientId: String
+    /// Absent for iOS/public clients — PKCE is used instead.
+    let clientSecret: String?
+    let authUri: String
+    let tokenUri: String
+    /// Full redirect URI sent to Google in the auth + token requests.
+    /// • iOS client:     com.googleusercontent.apps.XXXX:/oauthredirect
+    /// • Desktop client: (not supported in sandbox — use iOS client type)
+    let redirectURI: String
+    /// Scheme portion watched by ASWebAuthenticationSession.
+    let callbackScheme: String
 }
 
 // MARK: - GoogleAuth
@@ -33,38 +62,42 @@ actor GoogleAuth {
     static let shared = GoogleAuth()
     private init() {}
 
-    // MARK: - Stored types
+    // MARK: - JSON client_secret types (Desktop / Web)
 
     private struct ClientSecretFile: Decodable {
-        struct Installed: Decodable {
+        struct Credentials: Decodable {
             let clientId: String
-            let clientSecret: String
+            let clientSecret: String?
             let authUri: String
             let tokenUri: String
             enum CodingKeys: String, CodingKey {
-                case clientId = "client_id"
+                case clientId     = "client_id"
                 case clientSecret = "client_secret"
-                case authUri = "auth_uri"
-                case tokenUri = "token_uri"
+                case authUri      = "auth_uri"
+                case tokenUri     = "token_uri"
             }
         }
-        let installed: Installed
+        let installed: Credentials?
+        let web: Credentials?
+        var credentials: Credentials? { installed ?? web }
     }
+
+    // MARK: - Stored token
 
     struct StoredToken: Codable {
         var token: String
         var refreshToken: String?
         var tokenUri: String
         var clientId: String
-        var clientSecret: String
+        var clientSecret: String?
         var scopes: [String]
         var expiry: String?
 
         enum CodingKeys: String, CodingKey {
             case token
             case refreshToken = "refresh_token"
-            case tokenUri = "token_uri"
-            case clientId = "client_id"
+            case tokenUri     = "token_uri"
+            case clientId     = "client_id"
             case clientSecret = "client_secret"
             case scopes
             case expiry
@@ -84,10 +117,10 @@ actor GoogleAuth {
         let error: String?
         let errorDescription: String?
         enum CodingKeys: String, CodingKey {
-            case accessToken = "access_token"
-            case refreshToken = "refresh_token"
-            case expiresIn = "expires_in"
-            case tokenType = "token_type"
+            case accessToken      = "access_token"
+            case refreshToken     = "refresh_token"
+            case expiresIn        = "expires_in"
+            case tokenType        = "token_type"
             case error
             case errorDescription = "error_description"
         }
@@ -102,72 +135,178 @@ actor GoogleAuth {
     // MARK: - Paths
 
     private var tokenFilePath: URL {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".keynote_to_gslides")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = appSupport.appendingPathComponent("KeynoteToSlides")
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("token.json")
     }
 
-    private func loadClientSecret() throws -> ClientSecretFile.Installed {
-        // 1. Bundle
-        if let bundleURL = Bundle.main.url(forResource: "client_secret", withExtension: "json") {
-            let data = try Data(contentsOf: bundleURL)
-            return try JSONDecoder().decode(ClientSecretFile.self, from: data).installed
+    // MARK: - Credential loading (JSON + plist)
+
+    /// Loads OAuth credentials from either:
+    ///   • `GoogleService-Info.plist`  (iOS client — preferred, supports custom scheme)
+    ///   • `client_secret.json`        (Desktop/Web client — legacy, not usable in sandbox)
+    ///
+    /// Search order: bundle resource first, then dev `credentials/` folder next to repo root.
+    private func loadCredentials() throws -> OAuthCredentials {
+        // ── Plist (iOS client) ────────────────────────────────────────────────
+        if let cred = try? loadPlist(from: bundleURL(resource: "GoogleService-Info", ext: "plist")
+                                        ?? devURL(filename: "GoogleService-Info.plist")) {
+            return cred
         }
-        // 2. Dev: walk up from source file
-        let sourceURL = URL(fileURLWithPath: #filePath)
-        let credURL = sourceURL
+        // ── JSON (Desktop / Web client) ───────────────────────────────────────
+        if let cred = try? loadJSON(from: bundleURL(resource: "client_secret", ext: "json")
+                                        ?? devURL(filename: "client_secret.json")) {
+            return cred
+        }
+        throw AuthError.clientSecretNotFound
+    }
+
+    /// Parses a `GoogleService-Info.plist` downloaded from Google Cloud Console
+    /// (iOS OAuth 2.0 client type).
+    private func loadPlist(from url: URL?) throws -> OAuthCredentials {
+        guard let url else { throw AuthError.clientSecretNotFound }
+        let data = try Data(contentsOf: url)
+        var fmt = PropertyListSerialization.PropertyListFormat.xml
+        guard let dict = try? PropertyListSerialization.propertyList(
+                from: data, options: [], format: &fmt) as? [String: Any]
+        else { throw AuthError.invalidClientSecret }
+
+        // Required keys in GoogleService-Info.plist
+        guard let clientId         = dict["CLIENT_ID"] as? String,
+              let reversedClientId = dict["REVERSED_CLIENT_ID"] as? String,
+              !clientId.isEmpty, !reversedClientId.isEmpty
+        else { throw AuthError.invalidClientSecret }
+
+        // Redirect URI for iOS clients:  REVERSED_CLIENT_ID:/oauthredirect
+        // ASWebAuthenticationSession watches for scheme = REVERSED_CLIENT_ID
+        return OAuthCredentials(
+            clientId:       clientId,
+            clientSecret:   nil,   // iOS clients are public; PKCE used instead
+            authUri:        "https://accounts.google.com/o/oauth2/auth",
+            tokenUri:       "https://oauth2.googleapis.com/token",
+            redirectURI:    "\(reversedClientId):/oauthredirect",
+            callbackScheme: reversedClientId
+        )
+    }
+
+    /// Parses a `client_secret.json` (Desktop or Web application client type).
+    private func loadJSON(from url: URL?) throws -> OAuthCredentials {
+        guard let url else { throw AuthError.clientSecretNotFound }
+        let data = try Data(contentsOf: url)
+        guard let cred = try JSONDecoder().decode(ClientSecretFile.self, from: data).credentials else {
+            throw AuthError.invalidClientSecret
+        }
+        let effectiveSecret = cred.clientSecret.flatMap { $0.isEmpty ? nil : $0 }
+        // Desktop/Web JSON clients cannot be used with custom-scheme redirect in sandbox.
+        // Kept for dev builds that run without sandbox (e.g. from Xcode with sandbox OFF).
+        let scheme = "com.renanbianco.keynotetoslides"
+        return OAuthCredentials(
+            clientId:       cred.clientId,
+            clientSecret:   effectiveSecret,
+            authUri:        cred.authUri.isEmpty  ? "https://accounts.google.com/o/oauth2/auth" : cred.authUri,
+            tokenUri:       cred.tokenUri.isEmpty ? "https://oauth2.googleapis.com/token"       : cred.tokenUri,
+            redirectURI:    "\(scheme):/oauthredirect",
+            callbackScheme: scheme
+        )
+    }
+
+    private func bundleURL(resource: String, ext: String) -> URL? {
+        Bundle.main.url(forResource: resource, withExtension: ext)
+    }
+
+    private func devURL(filename: String) -> URL? {
+        // Walk up from this source file to the repo root, then into credentials/
+        let src = URL(fileURLWithPath: #filePath)
+        let url = src
             .deletingLastPathComponent() // Services/
             .deletingLastPathComponent() // KeynoteToSlides/ (sources)
             .deletingLastPathComponent() // KeynoteToSlides/ (project)
             .deletingLastPathComponent() // repo root
-            .appendingPathComponent("credentials/client_secret.json")
-        if FileManager.default.fileExists(atPath: credURL.path) {
-            let data = try Data(contentsOf: credURL)
-            return try JSONDecoder().decode(ClientSecretFile.self, from: data).installed
-        }
-        throw AuthError.clientSecretNotFound
+            .appendingPathComponent("credentials/\(filename)")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    // MARK: - PKCE (RFC 7636 S256)
+
+    private func generatePKCE() -> (verifier: String, challenge: String) {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let verifier = Data(bytes)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        let challengeData = Data(SHA256.hash(data: Data(verifier.utf8)))
+        let challenge = challengeData
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return (verifier, challenge)
     }
 
     // MARK: - Public API
 
     func signIn() async throws -> UserInfo {
-        let secret = try loadClientSecret()
-        let port = try findFreePort()
-        let redirectURI = "http://127.0.0.1:\(port)"
+        let cred = try loadCredentials()
+        let (pkceVerifier, pkceChallenge) = generatePKCE()
 
-        var components = URLComponents(string: secret.authUri.isEmpty ? "https://accounts.google.com/o/oauth2/auth" : secret.authUri)!
-        components.queryItems = [
-            .init(name: "client_id", value: secret.clientId),
-            .init(name: "redirect_uri", value: redirectURI),
-            .init(name: "response_type", value: "code"),
-            .init(name: "scope", value: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"),
-            .init(name: "access_type", value: "offline"),
-            .init(name: "prompt", value: "consent"),
+        var comps = URLComponents(string: cred.authUri)!
+        comps.queryItems = [
+            .init(name: "client_id",             value: cred.clientId),
+            .init(name: "redirect_uri",           value: cred.redirectURI),
+            .init(name: "response_type",          value: "code"),
+            .init(name: "scope",                  value: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid"),
+            .init(name: "access_type",            value: "offline"),
+            .init(name: "prompt",                 value: "consent"),
+            .init(name: "code_challenge",         value: pkceChallenge),
+            .init(name: "code_challenge_method",  value: "S256"),
         ]
+        guard let authURL = comps.url else {
+            throw AuthError.oauthError("Failed to build OAuth URL")
+        }
 
-        await MainActor.run { NSWorkspace.shared.open(components.url!) }
+        let callbackURL = try await webAuthSession(url: authURL, callbackScheme: cred.callbackScheme)
 
-        let code = try await waitForOAuthCode(port: port)
-        let tokenResp = try await exchangeCode(code: code, clientId: secret.clientId, clientSecret: secret.clientSecret, redirectURI: redirectURI, tokenURI: secret.tokenUri.isEmpty ? "https://oauth2.googleapis.com/token" : secret.tokenUri)
+        guard let callbackComps = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
+            throw AuthError.oauthError("Invalid callback URL: \(callbackURL)")
+        }
+        if let err = callbackComps.queryItems?.first(where: { $0.name == "error" })?.value {
+            throw AuthError.oauthError(err)
+        }
+        guard let code = callbackComps.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw AuthError.oauthError("No authorization code in callback URL")
+        }
 
-        let expiryDate = tokenResp.expiresIn.map { Date().addingTimeInterval(Double($0)) }
-        let expiryStr = expiryDate.map { ISO8601DateFormatter().string(from: $0) }
+        let tokenResp = try await exchangeCode(
+            code:         code,
+            clientId:     cred.clientId,
+            clientSecret: cred.clientSecret,
+            codeVerifier: pkceVerifier,
+            redirectURI:  cred.redirectURI,
+            tokenURI:     cred.tokenUri
+        )
 
+        let expiryStr = tokenResp.expiresIn.map {
+            ISO8601DateFormatter().string(from: Date().addingTimeInterval(Double($0)))
+        }
         let stored = StoredToken(
-            token: tokenResp.accessToken,
-            refreshToken: tokenResp.refreshToken,
-            tokenUri: secret.tokenUri.isEmpty ? "https://oauth2.googleapis.com/token" : secret.tokenUri,
-            clientId: secret.clientId,
-            clientSecret: secret.clientSecret,
-            scopes: ["https://www.googleapis.com/auth/drive.file",
-                     "https://www.googleapis.com/auth/userinfo.email",
-                     "https://www.googleapis.com/auth/userinfo.profile",
-                     "openid"],
+            token:         tokenResp.accessToken,
+            refreshToken:  tokenResp.refreshToken,
+            tokenUri:      cred.tokenUri,
+            clientId:      cred.clientId,
+            clientSecret:  cred.clientSecret,
+            scopes: [
+                "https://www.googleapis.com/auth/drive.file",
+                "https://www.googleapis.com/auth/userinfo.email",
+                "https://www.googleapis.com/auth/userinfo.profile",
+                "openid",
+            ],
             expiry: expiryStr
         )
         try saveToken(stored)
-
         return try await getUserInfo(accessToken: tokenResp.accessToken)
     }
 
@@ -177,10 +316,17 @@ actor GoogleAuth {
             var stored = try loadToken()
             if stored.isExpired {
                 guard let refresh = stored.refreshToken else { return nil }
-                let refreshed = try await refreshAccessToken(refreshToken: refresh, clientId: stored.clientId, clientSecret: stored.clientSecret, tokenURI: stored.tokenUri)
+                let refreshed = try await refreshAccessToken(
+                    refreshToken: refresh,
+                    clientId:     stored.clientId,
+                    clientSecret: stored.clientSecret,
+                    tokenURI:     stored.tokenUri
+                )
                 stored.token = refreshed.accessToken
                 if let newExpiry = refreshed.expiresIn {
-                    stored.expiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(Double(newExpiry)))
+                    stored.expiry = ISO8601DateFormatter().string(
+                        from: Date().addingTimeInterval(Double(newExpiry))
+                    )
                 }
                 try saveToken(stored)
             }
@@ -198,115 +344,112 @@ actor GoogleAuth {
         var stored = try loadToken()
         if stored.isExpired {
             guard let refresh = stored.refreshToken else { throw AuthError.noRefreshToken }
-            let refreshed = try await refreshAccessToken(refreshToken: refresh, clientId: stored.clientId, clientSecret: stored.clientSecret, tokenURI: stored.tokenUri)
+            let refreshed = try await refreshAccessToken(
+                refreshToken: refresh,
+                clientId:     stored.clientId,
+                clientSecret: stored.clientSecret,
+                tokenURI:     stored.tokenUri
+            )
             stored.token = refreshed.accessToken
             if let newExpiry = refreshed.expiresIn {
-                stored.expiry = ISO8601DateFormatter().string(from: Date().addingTimeInterval(Double(newExpiry)))
+                stored.expiry = ISO8601DateFormatter().string(
+                    from: Date().addingTimeInterval(Double(newExpiry))
+                )
             }
             try saveToken(stored)
         }
         return stored.token
     }
 
-    // MARK: - Private helpers
+    // MARK: - ASWebAuthenticationSession
 
-    private func findFreePort() throws -> UInt16 {
-        for port: UInt16 in 8080...8099 {
-            let sock = socket(AF_INET, SOCK_STREAM, 0)
-            guard sock >= 0 else { continue }
-            var addr = sockaddr_in()
-            addr.sin_family = sa_family_t(AF_INET)
-            addr.sin_port = port.bigEndian
-            addr.sin_addr.s_addr = INADDR_ANY
-            let bound = withUnsafePointer(to: &addr) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-                }
-            }
-            close(sock)
-            if bound == 0 { return port }
-        }
-        throw AuthError.noFreePort
-    }
-
-    private func waitForOAuthCode(port: UInt16) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            let queue = DispatchQueue(label: "com.renanbianco.KeynoteToSlides.oauth", qos: .userInitiated)
-            guard let listener = try? NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!) else {
-                continuation.resume(throwing: AuthError.noFreePort)
-                return
-            }
-
-            var resumed = false
-
-            listener.newConnectionHandler = { connection in
-                connection.start(queue: queue)
-                connection.receive(minimumIncompleteLength: 10, maximumLength: 8192) { data, _, _, _ in
-                    defer { listener.cancel() }
-                    let html = "<html><body style='font-family:system-ui;text-align:center;padding-top:80px'><h2>✓ Signed in!</h2><p>You can close this tab and return to the app.</p></body></html>"
-                    let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n\(html)"
-                    connection.send(content: response.data(using: .utf8), completion: .idempotent)
-
-                    guard !resumed, let data,
-                          let request = String(data: data, encoding: .utf8),
-                          let firstLine = request.components(separatedBy: "\r\n").first else { return }
-
-                    // firstLine: "GET /?code=XXX&... HTTP/1.1"
-                    let parts = firstLine.components(separatedBy: " ")
-                    guard parts.count >= 2 else { return }
-                    let path = parts[1]
-                    guard let urlComps = URLComponents(string: "http://localhost\(path)") else { return }
-
-                    if let code = urlComps.queryItems?.first(where: { $0.name == "code" })?.value {
-                        resumed = true
-                        continuation.resume(returning: code)
-                    } else if let err = urlComps.queryItems?.first(where: { $0.name == "error" })?.value {
-                        resumed = true
-                        continuation.resume(throwing: AuthError.oauthError(err))
+    private func webAuthSession(url: URL, callbackScheme: String) async throws -> URL {
+        let provider = AuthPresentationProvider()
+        return try await withCheckedThrowingContinuation { continuation in
+            Task { @MainActor in
+                let session = ASWebAuthenticationSession(
+                    url: url,
+                    callbackURLScheme: callbackScheme
+                ) { callbackURL, error in
+                    if let error {
+                        let nsErr = error as NSError
+                        if nsErr.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                            continuation.resume(throwing: AuthError.oauthCancelled)
+                        } else {
+                            continuation.resume(throwing: AuthError.oauthError(error.localizedDescription))
+                        }
+                    } else if let url = callbackURL {
+                        continuation.resume(returning: url)
+                    } else {
+                        continuation.resume(throwing: AuthError.oauthError("No callback URL received"))
                     }
                 }
+                session.presentationContextProvider = provider
+                session.prefersEphemeralWebBrowserSession = false
+                session.start()
             }
-
-            listener.stateUpdateHandler = { state in
-                if case .failed(let error) = state, !resumed {
-                    resumed = true
-                    continuation.resume(throwing: AuthError.networkError(error.localizedDescription))
-                }
-            }
-
-            listener.start(queue: queue)
         }
     }
 
-    private func exchangeCode(code: String, clientId: String, clientSecret: String, redirectURI: String, tokenURI: String) async throws -> TokenResponse {
+    // MARK: - Token exchange / refresh
+
+    private func exchangeCode(
+        code: String,
+        clientId: String,
+        clientSecret: String?,
+        codeVerifier: String?,
+        redirectURI: String,
+        tokenURI: String
+    ) async throws -> TokenResponse {
+        // Build body using URLComponents for correct percent-encoding.
+        var bodyComps = URLComponents()
+        var items: [URLQueryItem] = [
+            .init(name: "code",         value: code),
+            .init(name: "client_id",    value: clientId),
+            .init(name: "redirect_uri", value: redirectURI),
+            .init(name: "grant_type",   value: "authorization_code"),
+        ]
+        if let s = clientSecret  { items.append(.init(name: "client_secret", value: s)) }
+        if let v = codeVerifier  { items.append(.init(name: "code_verifier", value: v)) }
+        bodyComps.queryItems = items
+
         var req = URLRequest(url: URL(string: tokenURI)!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let body = "code=\(code)&client_id=\(clientId)&client_secret=\(clientSecret)&redirect_uri=\(redirectURI)&grant_type=authorization_code"
-        req.httpBody = body.data(using: .utf8)
-
+        req.httpBody = bodyComps.percentEncodedQuery?.data(using: .utf8)
         let (data, _) = try await URLSession.shared.data(for: req)
         let resp = try JSONDecoder().decode(TokenResponse.self, from: data)
-        if let err = resp.error {
-            throw AuthError.tokenExchangeFailed(resp.errorDescription ?? err)
-        }
+        if let err = resp.error { throw AuthError.tokenExchangeFailed(resp.errorDescription ?? err) }
         return resp
     }
 
-    private func refreshAccessToken(refreshToken: String, clientId: String, clientSecret: String, tokenURI: String) async throws -> TokenResponse {
-        var req = URLRequest(url: URL(string: tokenURI.isEmpty ? "https://oauth2.googleapis.com/token" : tokenURI)!)
+    private func refreshAccessToken(
+        refreshToken: String,
+        clientId: String,
+        clientSecret: String?,
+        tokenURI: String
+    ) async throws -> TokenResponse {
+        let uri = tokenURI.isEmpty ? "https://oauth2.googleapis.com/token" : tokenURI
+        var bodyComps = URLComponents()
+        var items: [URLQueryItem] = [
+            .init(name: "refresh_token", value: refreshToken),
+            .init(name: "client_id",     value: clientId),
+            .init(name: "grant_type",    value: "refresh_token"),
+        ]
+        if let s = clientSecret { items.append(.init(name: "client_secret", value: s)) }
+        bodyComps.queryItems = items
+
+        var req = URLRequest(url: URL(string: uri)!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let body = "refresh_token=\(refreshToken)&client_id=\(clientId)&client_secret=\(clientSecret)&grant_type=refresh_token"
-        req.httpBody = body.data(using: .utf8)
-
+        req.httpBody = bodyComps.percentEncodedQuery?.data(using: .utf8)
         let (data, _) = try await URLSession.shared.data(for: req)
         let resp = try JSONDecoder().decode(TokenResponse.self, from: data)
-        if let err = resp.error {
-            throw AuthError.tokenExchangeFailed(resp.errorDescription ?? err)
-        }
+        if let err = resp.error { throw AuthError.tokenExchangeFailed(resp.errorDescription ?? err) }
         return resp
     }
+
+    // MARK: - User info
 
     private func getUserInfo(accessToken: String) async throws -> UserInfo {
         var req = URLRequest(url: URL(string: "https://www.googleapis.com/oauth2/v2/userinfo")!)
@@ -314,11 +457,13 @@ actor GoogleAuth {
         let (data, _) = try await URLSession.shared.data(for: req)
         let info = try JSONDecoder().decode(UserInfoResponse.self, from: data)
         return UserInfo(
-            email: info.email ?? "",
-            name: info.name ?? "",
+            email:      info.email ?? "",
+            name:       info.name  ?? "",
             pictureURL: info.picture.flatMap { URL(string: $0) }
         )
     }
+
+    // MARK: - Token persistence
 
     private func loadToken() throws -> StoredToken {
         let data = try Data(contentsOf: tokenFilePath)

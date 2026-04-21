@@ -6,49 +6,85 @@ struct DropZoneView: View {
     @EnvironmentObject var appState: AppState
     var onPickFile: () -> Void
 
+    @State private var isHovering = false
     @State private var isDropTargeted = false
 
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.windowBackgroundColor).opacity(0.6))
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(
-                    isDropTargeted ? Color.accentColor : Color.secondary.opacity(0.35),
-                    style: StrokeStyle(lineWidth: 1.5, dash: isDropTargeted ? [] : [8, 5])
-                )
-                .animation(.easeInOut(duration: 0.15), value: isDropTargeted)
+    private let blue     = Color(red: 0.000, green: 0.443, blue: 0.890)
+    private let blueSoft = Color(red: 0.000, green: 0.443, blue: 0.890, opacity: 0.10)
 
-            if appState.selectedFileURL == nil {
-                VStack(spacing: 8) {
-                    Image(systemName: "arrow.down.doc")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
-                    Text("Drop a .key file or click to browse")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                }
+    private var canRemoveFile: Bool {
+        switch appState.phase {
+        case .idle, .failed: return true
+        default: return false
+        }
+    }
+
+    var body: some View {
+        Group {
+            if appState.selectedFileURL != nil {
+                fileChip
             } else {
-                VStack(spacing: 6) {
-                    Image(systemName: "doc.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(Color.accentColor)
-                    Text(appState.selectedFileName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: 400)
-                    Text(String(format: "%.1f MB", appState.selectedFileSizeMB))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                dropCard
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+    }
+
+    // MARK: - Empty drop card
+
+    private var dropCard: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(
+                    isDropTargeted
+                        ? blueSoft
+                        : (isHovering
+                            ? Color(red: 0.949, green: 0.949, blue: 0.969)
+                            : Color(red: 0.961, green: 0.961, blue: 0.969))
+                )
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isDropTargeted ? blue : Color.primary.opacity(0.12), lineWidth: 0.5)
+
+            VStack(spacing: 8) {
+                // Upload icon in a white tile
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9)
+                        .fill(Color.white)
+                        .shadow(color: .black.opacity(0.04), radius: 1, y: 1)
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+                    Image(systemName: "arrow.up.doc")
+                        .font(.system(size: 15))
+                        .foregroundColor(
+                            isDropTargeted ? blue : Color(red: 0.525, green: 0.525, blue: 0.545)
+                        )
+                }
+                .frame(width: 36, height: 36)
+
+                VStack(spacing: 2) {
+                    Text(isDropTargeted ? "Release to add" : "Drop a Keynote file here")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color(red: 0.114, green: 0.114, blue: 0.122))
+                        .tracking(-0.08)
+
+                    HStack(spacing: 0) {
+                        Text("or ")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(Color(red: 0.431, green: 0.431, blue: 0.451))
+                        Text("click to browse")
+                            .font(.system(size: 11.5))
+                            .foregroundColor(blue)
+                    }
                 }
             }
         }
-        .frame(height: 130)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 12)
+        .frame(height: 128)
+        .scaleEffect(isDropTargeted ? 1.005 : 1.0)
+        .animation(.easeInOut(duration: 0.15), value: isDropTargeted)
         .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
         .onTapGesture { onPickFile() }
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTargeted) { providers in
             guard let provider = providers.first else { return false }
@@ -63,10 +99,60 @@ struct DropZoneView: View {
             return true
         }
     }
+
+    // MARK: - File chip (file selected)
+
+    private var fileChip: some View {
+        HStack(spacing: 10) {
+            // Doc icon tile
+            ZStack {
+                RoundedRectangle(cornerRadius: 6).fill(blueSoft)
+                Image(systemName: "doc.fill")
+                    .font(.system(size: 13))
+                    .foregroundColor(blue)
+            }
+            .frame(width: 26, height: 26)
+            .fixedSize()
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(appState.selectedFileName)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundColor(Color(red: 0.114, green: 0.114, blue: 0.122))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .tracking(-0.05)
+            }
+
+            Spacer()
+
+            if canRemoveFile {
+                Button {
+                    appState.selectedFileURL = nil
+                    appState.phase = .idle
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(Color(red: 0.525, green: 0.525, blue: 0.545))
+                }
+                .buttonStyle(.plain)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+            }
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .frame(height: 44)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+        )
+    }
 }
 
 #Preview {
     DropZoneView(onPickFile: {})
         .environmentObject(AppState())
-        .frame(width: 640)
+        .frame(width: 480)
 }
